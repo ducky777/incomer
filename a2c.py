@@ -19,7 +19,7 @@ total_bars = 1000
 x, y, body, _ = LoadData.load_fx(filename, lookbacks=lookbacks,
                                  total_bars=total_bars)
 env = FXEnv(x, body, max_trades=6,
-            periods_per_episode=60, spread=0)
+            periods_per_episode=20, spread=0)
 state = env.reset()
 #%%
 def res_block(x, filters, size, stride, downsample=False):
@@ -70,6 +70,7 @@ start_model = Input(shape=(lookbacks - 1, 3))
 input_model = LSTM(256, return_sequences=True)(start_model)
 input_model = LSTM(128, return_sequences=True)(input_model)
 input_model = LSTM(64)(input_model)
+# input_model = Flatten()(input_model)
 input_model = Concatenate(axis=-1)([input_model, account_state])
 input_model = Dense(128)(input_model)
 input_model = LeakyReLU()(input_model)
@@ -77,14 +78,71 @@ input_model = LeakyReLU()(input_model)
 # actor
 actor = Dense(64)(input_model)
 actor = LeakyReLU()(actor)
-actor = Dense(3, activation='softmax')(actor)
+actor = Dense(128)(actor)
+actor = LeakyReLU()(actor)
+actor = Dense(3, activation='linear')(actor)
 
 # critic layers
 critic = Dense(32)(input_model)
 critic = LeakyReLU()(critic)
+critic = Dense(64)(critic)
+critic = LeakyReLU()(critic)
 critic = Dense(1, activation='linear')(critic)
 
-model = Model([start_model, account_state], [actor, critic])
+model_policy = Model([start_model, account_state], actor)
+model_target = Model([start_model, account_state], actor)
+#%%
+env = FXEnv(x, body, max_trades=6,
+            periods_per_episode=20, spread=0)
+
+gamma = 0.99
+optimizer = tf.optimizers.Adam(0.01)
+
+for ep in range(100):
+    done = False
+    state = env.reset()
+
+    states = [[], []]
+    next_states = [[], []]
+    rewards = []
+    dones = []
+    actions = []
+
+    while not done:
+        current_state = state.copy()
+        action = np.argmax(model(current_state))
+        new_state, reward, done, _ = env.step(action)
+
+        states[0].append(current_state[0])
+        states[1].append(current_state[1])
+        next_states[0].append(new_state[0])
+        next_states[1].append(new_state[1])
+        rewards.append(reward)
+        dones.append(done)
+        actions.append(action)
+
+    x1 = np.reshape(next_states[0], (len(next_states[0]), 120, 3))
+    x2 = np.reshape(next_states[1], (len(next_states[1]), 4))
+    q_s_a_prime = np.max(model_target([x1, x2]), axis = 1)
+    q_s_a_target = np.where(dones, rewards, rewards+gamma*q_s_a_prime)
+    q_s_a_target = tf.convert_to_tensor(q_s_a_target, dtype = 'float32')
+    # Calculate Loss function and gradient values for gradient descent
+    with tf.GradientTape() as tape:
+        x1 = np.reshape(states[0], (len(states[0]), 120, 3))
+        x2 = np.reshape(states[1], (len(states[1]), 4))
+        q_s_a = tf.math.reduce_sum(model_policy([x1, x2]) * \
+            tf.one_hot(actions, 3), axis=1)
+        loss = tf.math.reduce_mean(tf.square(q_s_a_target - q_s_a))
+
+    # Update the policy network weights using ADAM
+    variables = model_policy.trainable_variables
+    gradients = tape.gradient(loss, variables)
+    optimizer.apply_gradients(zip(gradients, variables))
+
+    # losses.append(loss.numpy())
+    print(ep)
+#%%
+next_states[0][0].shape
 #%%
 import tensorflow.keras.losses as kls
 import logging
@@ -218,7 +276,7 @@ state = env.reset()
 
 returns = []
 
-for _ in tqdm(range(40)):
+for _ in tqdm(range(10)):
     done = False
     state = env.reset()
     while not done:
@@ -229,6 +287,6 @@ for _ in tqdm(range(40)):
 plt.plot(np.cumsum(returns))
 #%%
 state = env.reset()
-act_probs, _ = model(state)
+act_probs = model_policy(state)
 act_probs
 #%%

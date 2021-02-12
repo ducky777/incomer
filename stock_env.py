@@ -89,7 +89,7 @@ class FXEnv:
         return new_state
 
     def reset(self):
-        start_idx = random.randint(0, len(self.y) - self.periods_per_episode -1)
+        start_idx = random.randint(0, len(self.y) - self.periods_per_episode - 2)
         self.pnl = 0
         self.current_position = 0
         self.nu_trades_in_ep = 0
@@ -119,11 +119,15 @@ class FXEnv:
                 if self.nu_trades_in_ep >= self.max_trades:
                     done = True
         reward += (action * self.y[self.current_bar])
+        if reward < 0:
+            reward = (-1 * reward)**0.5
+            reward = -reward
         self.current_position = action
-        self.current_bar += 1
         self.running_bars += 1
         if self.running_bars > self.periods_per_episode:
             done = True
+        else:
+            self.current_bar += 1
         new_state = self.states[self.current_bar]
         new_state = np.expand_dims(new_state, axis=0)
         account_state[-1] = self.nu_trades_in_ep/self.max_trades
