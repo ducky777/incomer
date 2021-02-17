@@ -17,7 +17,7 @@ class LoadData:
         # body = np.array(data.Close - data.Open) / np.array(data.Open)
 
         hightail = np.array(data.High - data.Open)
-        lowtail = np.array(data.Low - data.Open)
+        lowtail = np.array(data.Open - data.Low)
         body = np.array(data.Close - data.Open)
 
         # hightail = np.log(data.High) - np.log(data.Open)
@@ -57,13 +57,11 @@ class LoadData:
         return x, y, body, data_copy
 
 class FXEnv:
-    def __init__(self, x, y, spread=0.0001, gamma=0.05, max_trades=4,
+    def __init__(self, x, y, op, cl, spread=0.0001, gamma=0.05, max_trades=4,
                  periods_per_episode=20):
         # initialize data
-        # self.open = np.array(op)
-        # self.high = np.array(hi)
-        # self.low = np.array(lo)
-        # self.close = np.array(cl)
+        self.op = np.array(op)
+        self.cl = np.array(cl)
         self.states = x
         self.y = y
         self.max_trades = max_trades
@@ -75,6 +73,7 @@ class FXEnv:
         self.pnl = 0
         self.current_position = 0
         self.nu_trades_in_ep = 0
+        self.open_price = -1
 
         # initialize others
         self.action_space = spaces.Box(low = -1, high = 1,shape = (3,))
@@ -95,14 +94,15 @@ class FXEnv:
         self.nu_trades_in_ep = 0
         self.current_bar = start_idx
         self.running_bars = 0
+        self.open_price = 0
         # new_state = self._flatten_state()
         # return new_state
         new_state = self.states[self.current_bar]
         new_state = np.expand_dims(new_state, axis=0)
-        return [new_state, np.array([[0., 0., 0., 0.]])]
+        return [new_state, np.array([[1., 0., 0., 0.]])]
         # return self.states[self.current_bar]
 
-    def step(self, action):
+    def step1(self, action):
         # action = np.argmax(action)
         # action_state = [0]*3
         # action_state[action] = 1
@@ -112,12 +112,13 @@ class FXEnv:
             action = -1
         reward = 0
         done = False
-        if action != 0:
-            if action != self.current_position:
+        if action != self.current_position:
+            if action != 0:
                 reward -= self.spread
-                self.nu_trades_in_ep += 1
-                if self.nu_trades_in_ep >= self.max_trades:
-                    done = True
+            self.nu_trades_in_ep += 1
+            if self.nu_trades_in_ep >= self.max_trades:
+                done = True
+                action = 0
         reward += (action * self.y[self.current_bar])
         if reward < 0:
             reward = (-1 * reward)**0.5
@@ -138,3 +139,71 @@ class FXEnv:
         return [new_state, np.array([account_state])], reward, \
             done, {"episode": [self.running_bars],
                     "is_success": True}
+
+    def _is_closing(self, action):
+        if self.current_position == 0:
+            return False
+        if action != self.current_position:
+            return True
+        return False
+
+    def _is_opening(self, action):
+        if action == 0:
+            return False
+        if action != self.current_position:
+            return True
+        return False
+
+    def _handle_buy(self):
+        if self.current_position == 1:
+            return 0
+        else:
+            return (self.op[self.current_bar] - self.open_price)
+
+    def step(self, action):
+        # initialize variables
+        account_state = [0.] * 4
+        account_state[action] = 1.
+        store_position = self.current_position
+        if store_position == 2:
+            store_position = -1
+        if action == 2:
+            action = -1
+        reward = 0
+        done = False
+
+        # handle states
+        self.current_bar += 1
+        self.running_bars += 1
+        new_state = 0.
+
+        # handle open and closing of positions
+        if self._is_closing(action):
+            self.nu_trades_in_ep += 1
+            # if self.open_price > 0:
+            #     reward += (store_position * \
+            #         (self.op[self.current_bar] - self.open_price))
+        if self._is_opening(action):
+            reward -= self.spread
+            self.open_price = self.op[self.current_bar]
+
+        # handle reward
+        reward += (action * self.y[self.current_bar])
+        # if reward < 0:
+        #     reward *= 2
+
+        self.current_position = action
+
+        if self.nu_trades_in_ep > self.max_trades or \
+            self.running_bars > self.periods_per_episode:
+            done = True
+            account_state = [-1.] * 4
+            reward = 0.
+        else:
+            new_state = self.states[self.current_bar]
+            new_state = np.expand_dims(new_state, axis=0)
+            account_state[-1] = self.nu_trades_in_ep/self.max_trades
+
+        return [new_state, np.array([account_state])], reward, \
+                done, {"episode": [self.running_bars],
+                        "is_success": True}

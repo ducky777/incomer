@@ -373,3 +373,14 @@ act_probs = model.predict(state)
 state, reward, done, _ = env.step(act_probs[0])
 state[-5:]
 #%%
+import numpy as np
+import json
+test_dict = {'t1': 10, 't2':5, 't3': 11}
+
+with open('test.json', 'w') as f:
+    json.dump(test_dict, f)
+#%%
+with open('test.json', 'r') as f:
+    data = json.load(f)
+data
+#%%

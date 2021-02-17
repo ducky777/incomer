@@ -1,3 +1,5 @@
+import json
+
 import numpy as np
 import tensorflow as tf
 
@@ -6,6 +8,12 @@ class CNNModel:
         self.model_name = model_name
         self.model = tf.keras.models.load_model(model_name)
         self.x_max = x_max
+
+
+    def _load_settings(self):
+        with open('test.json', 'r') as f:
+            data = json.load(f)
+        return data
 
     def preprocess(self, op, hi, lo, cl):
         op = np.array(op)

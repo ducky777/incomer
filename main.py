@@ -7,6 +7,9 @@ from collections import deque
 
 from cnn_model import CNNModel
 
+from absl import app
+from absl import flags
+
 lookbacks = 60
 
 def receive_message():
