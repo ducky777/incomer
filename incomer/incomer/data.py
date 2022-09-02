@@ -105,7 +105,7 @@ class DataManager:
 
         for s in y:
             if np.argmax(s) == 0:
-                signals.append(-1)
+                signals.append(2)
             elif np.argmin(s) == 0:
                 signals.append(1)
             else:

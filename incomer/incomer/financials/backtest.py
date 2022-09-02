@@ -11,7 +11,7 @@ class BackTester:
         start = np.argmax(eq[:end])
         return eq[end] - eq[start]
 
-    def get_eq(self, predictions, op, verbose=1, reversed=False, min_elasped=20):
+    def get_eq(self, predictions, op, verbose=1, reversed=False, rev_signal=False, min_elasped=20):
         add_balance = 50000
 
         trades = []
@@ -20,9 +20,13 @@ class BackTester:
         entry_elasped = min_elasped
 
         for j, (pr, o) in enumerate(zip(predictions, op)):
+            # print(o)
+            o = o[0]
             lots = round(add_balance / o)
             if reversed:
                 lots = -lots
+            if rev_signal:
+                pr = -pr
             # lots = 1
             if pr == 1 and entry_elasped >= min_elasped:
                 if verbose:
@@ -50,6 +54,8 @@ class BackTester:
         predictions = extractor.predict(x, verbose=0)
 
         base = extractor.predict(x, verbose=0)
+
+        # print(base)
 
         cosine = cosine_similarity(predictions, base)
 

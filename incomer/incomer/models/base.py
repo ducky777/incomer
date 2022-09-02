@@ -77,7 +77,7 @@ class BaseModel(BackTester):
             else:
                 print(f"{ii} -> {score}")
 
-            eq = self.get_eq(predictions, op=self.op, verbose=False, rev_signal=True)
+            eq = self.get_eq(predictions, op=op, verbose=False, rev_signal=True)
             try:
                 dd = self.calculate_dd(eq)
             except Exception:
