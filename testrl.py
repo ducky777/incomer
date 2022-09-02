@@ -14,28 +14,10 @@ from tensorflow.keras.layers import Conv1D, AveragePooling1D, Dense, Flatten, Ma
 def get_eq(pr):
     return body * pr[:,0]
 
-def train_model(model, epochs):
-
-    best_eq = 0
-    best_model = None
-    for i in range(epochs):
-        print('\r%s' % i, end='\r')
-        model.fit(x, y, epochs=1, validation_split=0.02, batch_size=256, shuffle=True, verbose=0)
-        pr = model.predict(x)
-        eq = get_eq(pr)
-        val_eq = sum(eq[-int(len(x)*0.02):])/np.std(eq[-int(len(x)*0.02):])
-        if val_eq > best_eq:
-            best_eq = val_eq
-            best_model = model
-            plt.plot(np.cumsum(eq[-int(len(x)*0.02):]))
-            plt.show()
-            plt.close()
-    return best_model
-
 lookbacks = 241
 total_bars = 10000
 
-data = pd.read_csv('EURUSD60.csv', names=['Date', 'Time',
+data = pd.read_csv('data/EURUSD60.csv', names=['Date', 'Time',
                                             'Open', 'High',
                                             'Low', 'Close',
                                             'Volume'])
@@ -65,22 +47,30 @@ for i in range(1, lookbacks):
     df['lb_lt'+str(i)] = df[1].shift(i)
     df['lb_body'+str(i)] = df[2].shift(i)
 
-df = df.iloc[lookbacks:]
-data_copy = data.iloc[-total_bars:]
+df = df.iloc[lookbacks:].reset_index()
 data = np.array(df)
 data = data[-total_bars:]
-y = data[:, 2]
-x = data[:, 3:]
+x = data[:, 4:]
+body = data[:, 2]
 # body = y[:]
-
+#%%
 x_max = np.max(np.abs(x))
 y_max = np.max(np.abs(y))
 
 x = x/x_max
 y = y/y_max
 
-x = x.reshape((-1, lookbacks-1, 3))
+# x = (x - 0.000531742) / 0.07719479
 
+x = x.reshape((-1, lookbacks, 3))
+
+x.shape
+#%%
+x = x.reshape((-1, lookbacks - 1, 3))
+#%%
+print(x[-1][0])
+print(body[-2])
+#%%
 x.shape
 #%%
 def res_block(x, filters, size, stride, downsample=False):
@@ -372,15 +362,4 @@ state = env.reset()
 act_probs = model.predict(state)
 state, reward, done, _ = env.step(act_probs[0])
 state[-5:]
-#%%
-import numpy as np
-import json
-test_dict = {'t1': 10, 't2':5, 't3': 11}
-
-with open('test.json', 'w') as f:
-    json.dump(test_dict, f)
-#%%
-with open('test.json', 'r') as f:
-    data = json.load(f)
-data
 #%%

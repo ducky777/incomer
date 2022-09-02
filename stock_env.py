@@ -7,7 +7,7 @@ from gym import spaces
 class LoadData:
     @staticmethod
     def load_fx(filename, lookbacks=241, total_bars=10000):
-        data = pd.read_csv(filename, names=['Date', 'Time',
+        data = pd.read_csv('data/%s' % filename, names=['Date', 'Time',
                                                     'Open', 'High',
                                                     'Low', 'Close',
                                                     'Volume'])
@@ -207,3 +207,7 @@ class FXEnv:
         return [new_state, np.array([account_state])], reward, \
                 done, {"episode": [self.running_bars],
                         "is_success": True}
+
+class StockEnv:
+    def __init__(self):
+        pass

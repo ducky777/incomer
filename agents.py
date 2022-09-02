@@ -293,8 +293,8 @@ class PPOAgent:
 
             if mean_rewards > best_reward:
                 print('best reward = %.5f! Saving model...' % mean_rewards)
-                self.model_actor.save('model_actor_%i_%.5f.hdf5' % (iters, mean_rewards))
-                self.model_critic.save('model_critic_%i_%.5f.hdf5' % (iters, mean_rewards))
+                self.model_actor.save('models/A2C/EURUSD/model_actor_%i_%.5f.hdf5' % (iters, mean_rewards))
+                self.model_critic.save('models/A2C/EURUSD/model_critic_%i_%.5f.hdf5' % (iters, mean_rewards))
                 best_reward = mean_rewards
             iters += 1
             state = env.reset()

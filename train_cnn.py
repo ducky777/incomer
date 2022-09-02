@@ -46,14 +46,20 @@ def check_model_dir():
 def get_eq(pr, body):
     # pr = [-1 if i == 2 else i for i in pr]
     p_return = []
-    for signal in pr:
-        if signal[1] > 0.05:
-            p_return.append(1)
-        elif signal[2] > 0.05:
-            p_return.append(-1)
+    for i, signal in enumerate(pr):
+        returns = 0
+        if signal[1] > 50:
+            returns = body[i]
+            if pr[i-1][1] < 0.05:
+                returns -= 0.0001
+        # elif signal[2] > 0.05:
+        #     returns = -body[i]
+        #     if pr[i-1][2] < 0.05:
+        #         returns -= 0.0001
         else:
-            p_return.append(0)
-    return body*p_return
+            returns = 0
+    p_return.append(returns)
+    return p_return
 
 def get_data():
 
@@ -83,10 +89,12 @@ def get_data():
     # body = np.log(data.Close) - np.log(data.Open)
 
     market_data = np.stack((hightail, lowtail, body), axis=1)
+    # market_data = market_data[:-1]
 
     body = np.array(data.Close - data.Open)
-    body = body[lookbacks:]
+    # body = body[lookbacks:]
     body = body[-total_bars:]
+    # body = body[1:]
 
     df = pd.DataFrame(market_data)
 
@@ -137,7 +145,7 @@ def get_data():
     x_mean = np.mean(x[:valid_idx])
     x_std = np.std(x[:valid_idx])
 
-    x = (x - x_mean) / x_std
+    # x = (x - x_mean) / x_std
 
     data_info['x_mean'] = x_mean
     data_info['x_std'] = x_std
@@ -211,7 +219,9 @@ def train(x, y, body):
                 best_eq = total_eq
                 print('Best return @ time %i with epoch %i: %.5f' %
                       (i, epo, total_eq))
-                # plt.plot(np.cumsum(eq))
+                plt.plot(np.cumsum(eq))
+                plt.draw()
+                plt.pause(0.001)
                 # plt.show()
                 # plt.close()
                 # plt.plot(np.cumsum(eq[valid_idx:]))
@@ -220,6 +230,9 @@ def train(x, y, body):
 
 def main(argv):
     print('non-flag arguments:', argv)
+
+    plt.ion()
+    plt.show()
 
     global MODEL_PATH
 

@@ -3,6 +3,7 @@ import pandas as pd
 import random
 import plotly.graph_objects as go
 import numpy as np
+import matplotlib.pyplot as plt
 
 from gym import spaces
 from collections import deque
@@ -228,12 +229,16 @@ class ReplayBuffer:
         return len(self.buffer)
 
 class ActionStateModel:
-    def __init__(self, state_dim, aciton_dim):
+    def __init__(self, state_dim, action_dim, model_name=None):
         self.state_dim  = state_dim
-        self.action_dim = aciton_dim
+        self.action_dim = action_dim
         self.epsilon = 0.4
 
-        self.model = get_model()
+        if model_name:
+            self.model = tf.keras.models.load_model(model_name)
+        else:
+            self.model = get_model()
+        # self.model = tf.keras.models.load_model('models/DQN/EURUSD/172_0.01345.h5')
 
     def _split_data(self, states):
         market_state, date_state, hour_state, account_state = [], [], [], []
@@ -256,12 +261,12 @@ class ActionStateModel:
 
         return self.model(states).numpy()
 
-    def get_action(self, state):
+    def get_action(self, state, is_testing=False):
         # state = np.reshape(state, [1, self.state_dim])
         self.epsilon *= 0.95
         self.epsilon = max(self.epsilon, 0.2)
         q_value = self.predict([state])[0]
-        if np.random.random() < self.epsilon:
+        if np.random.random() < self.epsilon and not is_testing:
             return random.randint(0, self.action_dim-1)
         return np.argmax(q_value)
 
@@ -270,13 +275,13 @@ class ActionStateModel:
         self.model.fit(states, targets, epochs=1, verbose=0)
 
 class Agent:
-    def __init__(self, env):
+    def __init__(self, env, model_name=None):
         self.env = env
         self.state_dim = -1
         self.action_dim = 3
 
-        self.model = ActionStateModel(self.state_dim, self.action_dim)
-        self.target_model = ActionStateModel(self.state_dim, self.action_dim)
+        self.model = ActionStateModel(self.state_dim, self.action_dim, model_name)
+        self.target_model = ActionStateModel(self.state_dim, self.action_dim, model_name)
         self.target_update()
 
         self.buffer = ReplayBuffer()
@@ -308,19 +313,38 @@ class Agent:
             if self.buffer.size() >= batch_size:
                 self.replay()
             self.target_update()
-            if total_reward > best_reward:
-                best_reward = total_reward
-                print('Saving model as EURUSD_%i_%.5f.h5' % (ep, total_reward))
-                self.model.model.save('EURUSD_%i_%.5f.h5' % (ep, total_reward))
+            if ep % 250 == 0 and ep > 0:
+                print("Testing...")
+                test_reward = sum(self.test(num_tests=200))
+                print("[EP: %i] Test reward=%.5f" % (ep, test_reward))
+                if test_reward > best_reward:
+                    best_reward = test_reward
+                    print('Saving model as EURUSD_%i_%.5f.h5' % (ep, test_reward))
+                    self.model.model.save('models/DQN/EURUSD/%i_%.5f.h5' % (ep, test_reward))
             print('EP%i EpisodeReward=%.6f' % (ep, total_reward))
             # wandb.log({'Reward': total_reward})
+
+    def test(self, num_tests):
+        for _ in range(num_tests):
+            done, total_reward = False, []
+            state = self.env.reset()
+            while not done:
+                action = self.model.get_action(state, is_testing=True)
+                next_state, reward, done, _ = self.env.step(action)
+                total_reward.append(reward)
+                state = next_state
+        return total_reward
 
 if __name__ == '__main__':
 
     # ========== PARAMETERS ==========
-    number_of_bars = 183
-    periods_per_episode = 120
-    max_trades = 120
+    symbol = 'EURUSD'
+    timeframe = 60
+    model_filename = 'models/'
+    filename = 'EURUSD60.csv'
+    number_of_bars = 10000
+    periods_per_episode = 24
+    max_trades = 3
 
     cycles = [3, 61]
     lookbacks = 60
@@ -328,7 +352,9 @@ if __name__ == '__main__':
     gamma = 1
     # ================================
 
-    data = pd.read_csv('EURUSD60.csv',
+    MODEL_PATH = 'models/DQN/%s/%s' % (symbol, model_filename)
+
+    data = pd.read_csv('data/%s' % filename,
                         names=['Date', 'Time',
                         'Open', 'High',
                         'Low', 'Close',
@@ -341,5 +367,10 @@ if __name__ == '__main__':
     env = FXEnv2(data, lookbacks=lookbacks, cycles=cycles,
                 spread=0.0001, max_trades=max_trades,
                 periods_per_episode=periods_per_episode)
+    # agent = Agent(env, MODEL_PATH)
+    # rewards = agent.test()
+    # plt.plot(np.cumsum(rewards))
+    # plt.show()
+
     agent = Agent(env)
-    agent.train(max_episodes=1000)
+    agent.train(max_episodes=500000)

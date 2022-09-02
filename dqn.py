@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 
 tf.config.list_physical_devices('GPU')
 
-data = pd.read_csv('EURUSD60.csv', names=['Date', 'Time',
+data = pd.read_csv('models/EURUSD60.csv', names=['Date', 'Time',
                                     'Open', 'High',
                                     'Low', 'Close',
                                     'Volume'])
@@ -176,7 +176,7 @@ env = FXEnv2(data, lookbacks=lookbacks, cycles=cycles,
 state = env.reset()
 state[0][-1]
 #%%
-model = tf.keras.models.load_model('EURUSD_236_0.02803.h5')
+model = tf.keras.models.load_model('models/EURUSD60_241/0.02031.h5')
 #%%
 total_rewards = []
 actions = []
@@ -525,18 +525,6 @@ x = x[:-12]
 body = body[:-12]
 x = (x - np.mean(x[:valid_idx])) / np.std(x[:valid_idx])
 #%%
-def get_eq(pr):
-    # pr = [-1 if i == 2 else i for i in pr]
-    p_return = []
-    for signal in pr:
-        if signal[1] > 0.05:
-            p_return.append(1)
-        elif signal[2] > 0.05:
-            p_return.append(-1)
-        else:
-            p_return.append(0)
-    return body*p_return
-
 best_eq = 0
 for i in range(2000):
     k.clear_session()
@@ -559,5 +547,25 @@ for i in range(2000):
             plt.show()
             plt.close()
 #%%
-# model.save("EURUSD_sharpe_best.h5")
+def get_eq(pr):
+    # pr = [-1 if i == 2 else i for i in pr]
+    p_return = []
+    for signal in pr:
+        if signal[1] > 0.05:
+            p_return.append(1)
+        elif signal[2] > 0.05:
+            p_return.append(-1)
+        else:
+            p_return.append(0)
+    return body*p_return
+
+model = tf.keras.models.load_model('models/EURUSD60_241/0.02608.h5')
+pr = model(x)
+eq = get_eq(pr)
+plt.plot(np.cumsum(eq))
+plt.show()
+plt.close()
+plt.plot(np.cumsum(eq[-100:]))
+plt.show()
+plt.close()
 #%%

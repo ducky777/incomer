@@ -1,1 +1,1 @@
-python train_cnn.py --symbol EURUSD --timeframe 60
+python train_cnn.py --symbol US500 --timeframe 1440

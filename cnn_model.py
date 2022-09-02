@@ -4,14 +4,16 @@ import numpy as np
 import tensorflow as tf
 
 class CNNModel:
-    def __init__(self, model_name, x_max):
+    def __init__(self, model_path, model_name):
+        self.model_path = model_path
         self.model_name = model_name
-        self.model = tf.keras.models.load_model(model_name)
-        self.x_max = x_max
-
+        self.model = tf.keras.models.load_model('%s/%s' %
+                                                (self.model_path,
+                                                 self.model_name))
+        self.info = self._load_settings()
 
     def _load_settings(self):
-        with open('test.json', 'r') as f:
+        with open('%s/vars.json' % self.model_path, 'r') as f:
             data = json.load(f)
         return data
 
@@ -26,10 +28,16 @@ class CNNModel:
         body = cl - op
 
         x = np.stack((hightail, lowtail, body), axis=1)
-        x = x/self.x_max
+        x = x/self.info['x_max']
+        # x = (x - self.info['x_mean']) /  self.info['x_std']
         x = x.reshape(-1, x.shape[0], x.shape[1])
-        return x
+        return x[::-1]
 
     def predict(self, op, hi, lo, cl):
         x = self.preprocess(op, hi, lo, cl)
-        return self.model.predict(x)[0][0]
+        signal = self.model.predict(x)
+        if signal[0][1] > 0.05:
+            return 1
+        elif signal[0][2] > 0.05:
+            return -1
+        return 0
