@@ -19,6 +19,8 @@ class DataManager:
         if num_bars:
             self.df = self.df.iloc[-num_bars:]
 
+        self.df.Close = self.df.Open.shift(-1)
+
         self.df = self.combine_date_time(self.df)
         self.df = self.get_ohlc(self.df)
 
@@ -73,7 +75,7 @@ class DataManager:
         df[f"body{lookback}"] = df.body.shift(lookback)
 
         for c in self.cycles:
-            df[f"C{c}{lookback}"] = df[f"C{c}"].shift(lookback)
+            df[f"C{c}_{lookback}"] = df[f"C{c}"].shift(lookback)
 
         return df
 
@@ -84,10 +86,9 @@ class DataManager:
             axis=1,
         )
 
-        for l in tqdm(range(1, lookbacks)):
+        for l in tqdm(range(lookbacks)):
             df = self.add_lookback(df, l)
-
-        return np.array(df).reshape(-1, lookbacks, len(self.cycles) + 3)
+        return np.array(df).reshape(-1, lookbacks + 1, len(self.cycles) + 3)
 
     def get_cumsum(self, forward_bars: int):
         y = pd.DataFrame()
@@ -98,30 +99,32 @@ class DataManager:
         return y
 
     def get_y(self, forward_bars: int):
-        y = self.get_cumsum(forward_bars)
-        y = np.array(y)
+        forward_bars = 48
+        indexer = pd.api.indexers.FixedForwardWindowIndexer(window_size=forward_bars)
 
-        signals = []
+        df = self.df.copy()
 
-        for s in y:
-            if np.argmax(s) == 0:
-                signals.append(2)
-            elif np.argmin(s) == 0:
-                signals.append(1)
-            else:
-                signals.append(0)
-        return np.array(signals).astype(float).reshape(-1, 1)
+        df["ymax"] = df.Close.rolling(window=indexer, min_periods=0).apply(np.argmax)
+        df["ymin"] = df.Close.rolling(window=indexer, min_periods=0).apply(np.argmin)
+        df["y"] = 0
+        df.loc[df["ymin"] == 0, "y"] = 1
+        df.loc[df["ymax"] == 0, "y"] = 2
+        return np.array(df.y).reshape(-1, 1).astype(np.float32)
 
     def create_train_data(self, valid_split: float, lookbacks: int, forward_bars: int):
         x = self.get_x(lookbacks)[lookbacks:]
         y = self.get_y(forward_bars)[lookbacks:]
 
         valid_idx = int(round(len(x) * valid_split))
+
         xtrain = x[:valid_idx]
         ytrain = y[:valid_idx]
 
         xtest = x[valid_idx:]
         ytest = y[valid_idx:]
+
+        xbase = xtrain.copy()
+        ybase = ytrain.copy()
 
         oversample = SMOTE(sampling_strategy="not majority")
         x_over, y_over = oversample.fit_resample(
@@ -132,12 +135,20 @@ class DataManager:
         xtrain = np.array([*x_over, *xtrain])
         ytrain = np.array([*y_over, *ytrain])
 
-        self.body = self.body[valid_idx + lookbacks :]
-        self.op = self.op[valid_idx + lookbacks :]
+        self.body = self.body[valid_idx:]
+
+        op = self.op[lookbacks:]
+        op = op[valid_idx:]
+
+        xbase = xbase[lookbacks:]
+        ybase = ybase[lookbacks:]
 
         return (
             xtrain.astype(np.float32),
             ytrain.astype(np.float32),
             xtest.astype(np.float32),
             ytest.astype(np.float32),
+            xbase.astype(np.float32),
+            ybase.astype(np.float32),
+            op.astype(np.float32)
         )

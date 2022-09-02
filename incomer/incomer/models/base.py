@@ -37,7 +37,8 @@ class BaseModel(BackTester):
         x: np.array,
         y: np.array,
         xtest: np.array,
-        body: np.array,
+        xbase: np.array,
+        ybase: np.array,
         op: np.array,
         epochs: int = 999999999,
         batch_size: int = 16,
@@ -57,7 +58,7 @@ class BaseModel(BackTester):
                 shuffle=True,
                 verbose=0,
             )
-            predictions = self.get_signals(self.model, xtest, body)
+            predictions = self.get_signals(self.model, xtest, xbase, ybase)
             eq = self.get_eq(predictions, op=op, verbose=False)
             try:
                 dd = self.calculate_dd(eq)

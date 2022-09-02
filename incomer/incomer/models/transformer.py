@@ -59,3 +59,8 @@ class TradeTransformer(BaseModel):
             optimizer=keras.optimizers.Adam(learning_rate=1e-4),
             metrics=["accuracy"],
         )
+
+    def convert_extractor(self):
+        extractor = keras.models.Model(self.model.input, self.model.layers[-3].output)
+        del self.model
+        self.model = extractor

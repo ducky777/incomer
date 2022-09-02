@@ -49,11 +49,11 @@ class BackTester:
         eq = np.array(eq)
         return eq
 
-    def get_signals(self, model, x, y):
+    def get_signals(self, model, x, xbase, body):
         extractor = keras.models.Model(model.input, model.layers[-3].output)
         predictions = extractor.predict(x, verbose=0)
 
-        base = extractor.predict(x, verbose=0)
+        base = extractor.predict(xbase, verbose=0)
 
         # print(base)
 
@@ -61,7 +61,7 @@ class BackTester:
 
         max_signals = np.argmax(cosine, axis=1)
 
-        signals = y[max_signals]
+        signals = body[max_signals]
 
         csum = np.cumsum(signals, axis=1)
         argmax = np.argmax(csum, axis=1)
